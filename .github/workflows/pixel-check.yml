@@ -1,0 +1,109 @@
+name: Pixel Check
+
+# Three ways this runs:
+#   1. workflow_dispatch - you click "Run workflow" in the Actions tab
+#   2. schedule          - automatically, Mondays at 9am UTC
+#   3. locally           - not this file at all; see README
+on:
+  workflow_dispatch:
+    inputs:
+      domains:
+        description: 'Paste domains here, one per line (leave blank to use data/clients.csv)'
+        required: false
+        type: string
+      input_file:
+        description: 'Or a CSV path in the repo'
+        required: false
+        default: 'data/clients.csv'
+        type: string
+      agency:
+        description: 'Agency name to tag these rows with (optional)'
+        required: false
+        type: string
+      workers:
+        description: 'Parallel workers'
+        required: false
+        default: '15'
+        type: string
+
+  schedule:
+    # Mondays 09:00 UTC. GitHub cron is UTC only.
+    - cron: '0 9 * * 1'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write Google credentials
+        # The secret holds the full JSON key. It is never written to the repo,
+        # only to the throwaway runner filesystem, which is destroyed after the job.
+        env:
+          SA_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::Secret GCP_SERVICE_ACCOUNT_JSON is not set. See README step 3."
+            exit 1
+          fi
+          echo "$SA_JSON" > service_account.json
+          python -c "import json; json.load(open('service_account.json')); print('credentials parsed OK')"
+
+      - name: Build the input list
+        id: input
+        env:
+          PASTED: ${{ inputs.domains }}
+          FILE: ${{ inputs.input_file }}
+        run: |
+          if [ -n "$PASTED" ]; then
+            # Pasted domains win over the committed file.
+            echo "domain" > run_input.csv
+            echo "$PASTED" | tr ',' '\n' | sed 's/[[:space:]]//g' | grep -v '^$' >> run_input.csv
+            echo "Using pasted domains:"
+          else
+            TARGET="${FILE:-data/clients.csv}"
+            if [ ! -f "$TARGET" ]; then
+              echo "::error::No domains pasted and $TARGET does not exist."
+              exit 1
+            fi
+            cp "$TARGET" run_input.csv
+            echo "Using $TARGET:"
+          fi
+          echo "  $(( $(wc -l < run_input.csv) - 1 )) domains"
+
+      - name: Run pixel check
+        env:
+          SHEET_ID: ${{ vars.SHEET_ID }}
+        run: |
+          python pixel_check.py run_input.csv \
+            -o results.csv \
+            --sheet \
+            --workers "${{ inputs.workers || '15' }}" \
+            ${{ inputs.agency && format('--agency "{0}"', inputs.agency) || '' }}
+
+      - name: Save results as a download
+        # Belt and braces: results are in the Sheet, but also attached to the run
+        # so you can grab the raw CSV from the Actions page.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-results
+          path: results.csv
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean up credentials
+        if: always()
+        run: rm -f service_account.json

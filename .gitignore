@@ -1,0 +1,6 @@
+service_account.json
+*.pyc
+__pycache__/
+results*.csv
+.env
+.venv/
