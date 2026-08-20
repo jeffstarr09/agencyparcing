@@ -29,6 +29,7 @@ world through two callables you pass in:
 import csv
 import json
 import os
+import re
 import threading
 import time
 import traceback
@@ -589,3 +590,232 @@ def record_verdict(entity_key, agency_domain, verdict, correct_value="", method=
     feedback.save_rules(rules)
     parse_clients.RULES = feedback.Rules(rules)
     return report
+
+
+# --------------------------------------------------------------------------
+# Importing agencies you found yourself
+#
+# Search engines forbid automated searching in their robots.txt and this app
+# honours that, so it cannot run the searches for you. It can take the results
+# once *you* have run one: paste the page, or a list of addresses, and this
+# pulls the agency websites out.
+# --------------------------------------------------------------------------
+
+# Bare domains, and full URLs, out of arbitrary pasted text or saved HTML.
+_URL_RE = re.compile(r"https?://[^\s\"'<>)\]}]+", re.I)
+_BARE_DOMAIN_RE = re.compile(
+    r"\b(?:www\.)?([a-z0-9][a-z0-9\-]{0,61}"
+    r"(?:\.[a-z0-9][a-z0-9\-]{0,61})*"
+    r"\.(?:com|net|org|co|io|agency|marketing|digital|media|us|biz|studio|group))\b",
+    re.I)
+
+SEARCH_TEMPLATES = [
+    ('"{term} marketing agency" {geo}', "the plain one"),
+    ('"{term} advertising agency" {geo}', "catches shops that say advertising"),
+    ('"{term} ppc agency" {geo}', "catches the paid-media specialists"),
+]
+
+
+def search_links(vertical, geo, engine="google"):
+    """
+    Ready-made searches for you to click. These open in your own browser, where
+    you are simply a person searching - which is the part this app cannot and
+    should not do on your behalf.
+    """
+    from urllib.parse import quote_plus as _q
+    base = {
+        "google": "https://www.google.com/search?q={q}",
+        "duckduckgo": "https://duckduckgo.com/?q={q}",
+        "bing": "https://www.bing.com/search?q={q}",
+    }.get(engine, "https://www.google.com/search?q={q}")
+
+    terms = find_agencies.VERTICALS.get(vertical, [vertical])[:4]
+    excl = " -site:clutch.co -site:sortlist.com -site:designrush.com -site:upcity.com"
+    out = []
+    for term in terms:
+        for template, why in SEARCH_TEMPLATES[:1]:
+            q = template.format(term=term, geo=geo or "").strip() + excl
+            out.append({"term": term, "why": why, "query": q,
+                        "url": base.format(q=_q(q))})
+    return out
+
+
+def extract_agencies(text, vertical="", geo=""):
+    """
+    Pull candidate agency websites out of whatever was pasted: a saved search
+    page, copied text, or just a list of addresses.
+
+    Filters out the search engine itself, social networks, the directories and
+    the usual platform noise, then dedupes by root domain. Returns candidates -
+    nothing is saved until you say so.
+    """
+    text = text or ""
+    found, seen = [], set()
+
+    def consider(raw):
+        rd = find_agencies._plausible_agency_domain(raw)
+        if not rd or rd in seen:
+            return
+        seen.add(rd)
+        found.append(rd)
+
+    for url in _URL_RE.findall(text):
+        # Unwrap the redirector links search results are wrapped in.
+        from urllib.parse import parse_qs, unquote, urlparse as _up
+        parsed = _up(unquote(url))
+        qs = parse_qs(parsed.query)
+        for key in ("url", "q", "uddg", "u", "target"):
+            if key in qs and qs[key] and qs[key][0].startswith("http"):
+                consider(qs[key][0])
+                break
+        else:
+            consider(url)
+
+    for match in _BARE_DOMAIN_RE.findall(text):
+        consider(match)
+
+    return [_candidate_row(d, vertical, geo) for d in found]
+
+
+def _candidate_row(domain, vertical, geo):
+    return {
+        "agency_name": "", "agency_domain": domain, "vertical": vertical,
+        "hq_location": geo, "employee_count": "", "mentions_tiktok": "",
+        "tiktok_evidence": "", "client_page_url": "", "clients_found": "",
+        "status": "candidate", "notes": "added from your own search",
+        "last_checked": common.now_stamp(),
+    }
+
+
+def add_agencies(domains, vertical="", geo=""):
+    """
+    Save imported agencies into agencies.csv, skipping ones already known and
+    any badged TikTok partner. Returns (added, skipped_known, skipped_partner).
+    """
+    store = Store(AGENCIES_CSV, AGENCY_FIELDS, ["agency_domain"])
+    known = {r["agency_domain"] for r in store.all()}
+    try:
+        partners = tiktok_partners.domain_set(required=False)
+    except SystemExit:
+        partners = set()
+
+    added = skipped_known = skipped_partner = 0
+    for d in domains:
+        rd = common.root_domain(d)
+        if not rd:
+            continue
+        if rd in known:
+            skipped_known += 1
+            continue
+        if rd in partners:
+            skipped_partner += 1
+            continue
+        store.put(_candidate_row(rd, vertical, geo))
+        known.add(rd)
+        added += 1
+    store.flush()
+    return added, skipped_known, skipped_partner
+
+
+def process_agencies(domains, on_event, should_stop, config=None):
+    """
+    Run the checking half of the pipeline over specific agencies: TikTok in
+    their services, then clients, then pixel-check those clients.
+
+    This is what runs after an import, and it is the same code the full run uses
+    - imported agencies are not treated as a special case anywhere downstream.
+    """
+    cfg = dict(DEFAULT_CONFIG)
+    cfg.update(config or {})
+
+    agencies = Store(AGENCIES_CSV, AGENCY_FIELDS, ["agency_domain"])
+    clients = Store(CLIENTS_CSV, CLIENT_FIELDS, ["agency_domain", "client_name"])
+    tags = Store(TAGS_CSV, TAG_FIELDS, ["domain"])
+
+    wanted = {common.root_domain(d) for d in domains if common.root_domain(d)}
+    todo = [a for a in agencies.all() if a["agency_domain"] in wanted] if wanted else [
+        a for a in agencies.all() if not a.get("mentions_tiktok")]
+    if not todo:
+        on_event("info", "Nothing new to check.")
+        return summary(agencies, clients, tags)
+
+    fetcher = common.Fetcher(delay=cfg["delay"], verbose=False)
+    state = load_state()
+
+    try:
+        on_event("step", f"Checking {len(todo)} agencies for TikTok in their services")
+        checked = []
+        for i, agency in enumerate(todo, 1):
+            if should_stop():
+                raise Stopped()
+            try:
+                row = check_agency_tiktok.check_agency(fetcher, agency, run_pixel=True)
+            except Exception as e:
+                row = dict(agency, status=f"crashed:{type(e).__name__}", mentions_tiktok="")
+            for k in ("_pages_fetched", "_pixel_status", "_own_tiktok_pixel"):
+                row.pop(k, None)
+            agencies.put(row)
+            checked.append(row)
+            on_event("progress", f"  {row.get('agency_domain', '')}: {_tiktok_label(row)}",
+                     step="tiktok", i=i, n=len(todo))
+
+        targets = [r for r in checked if r.get("mentions_tiktok") != "yes"]
+        on_event("info", f"{len(targets)} of {len(checked)} do not sell TikTok.")
+
+        to_parse = targets or checked
+        on_event("step", f"Reading client lists for {len(to_parse)} agencies")
+        batch_clients = []
+        for i, agency in enumerate(to_parse, 1):
+            if should_stop():
+                raise Stopped()
+            try:
+                found_clients, arow = parse_clients.parse_agency(fetcher, agency)
+            except Exception as e:
+                found_clients, arow = [], dict(
+                    agency, status=f"crashed:{type(e).__name__}", clients_found="")
+            for c in found_clients:
+                c.pop("_methods", None)
+                c.pop("_name_from_domain", None)
+            agencies.put(arow)
+            clients.put_all(found_clients)
+            batch_clients += found_clients
+            on_event("progress",
+                     f"  {arow.get('agency_domain', '')}: "
+                     f"{arow.get('clients_found') or '—'} clients ({arow.get('status', '')})",
+                     step="clients", i=i, n=len(to_parse))
+
+        seen_domains = {t["domain"] for t in tags.all()}
+        to_check = []
+        for c in batch_clients:
+            d = (c.get("client_domain") or "").strip()
+            if d and d not in seen_domains and d not in {x["domain"] for x in to_check}:
+                to_check.append({"domain": d, "client_name": c.get("client_name", ""),
+                                 "agency_name": c.get("agency_name", "")})
+        if to_check:
+            on_event("step", f"Checking {len(to_check)} client sites for a TikTok pixel")
+            for i, item in enumerate(to_check, 1):
+                if should_stop():
+                    raise Stopped()
+                session = pixel_check.requests.Session()
+                try:
+                    row = pixel_check.check(item["domain"], session)
+                except Exception as e:
+                    row = {"domain": item["domain"], "status": f"crashed:{type(e).__name__}"}
+                finally:
+                    session.close()
+                row["client_name"] = item["client_name"]
+                row["agency_name"] = item["agency_name"]
+                row["last_checked"] = common.now_stamp()
+                tags.put(row)
+                on_event("progress", f"  {item['domain']}: {_pixel_label(row)}",
+                         step="pixels", i=i, n=len(to_check))
+                time.sleep(max(0.0, cfg["delay"] * 0.5))
+    except Stopped:
+        on_event("info", "Stopping - saving everything found so far.")
+    except Exception as e:
+        on_event("error", f"Unexpected error: {type(e).__name__}: {e}")
+        on_event("debug", traceback.format_exc())
+    finally:
+        _persist(agencies, clients, tags, state, STATE_PATH, cfg, on_event)
+
+    return summary(agencies, clients, tags)

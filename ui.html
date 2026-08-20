@@ -142,6 +142,45 @@
       </div>
     </div>
 
+    <div class="card" id="troubleCard" hidden>
+      <h2 id="troubleTitle">Nothing found</h2>
+      <p class="sub" id="troubleBody" style="margin:0 0 12px"></p>
+      <button id="diagnoseBtn">Find out why</button>
+      <div id="diagnoseOut" style="margin-top:14px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Add agencies from your browser</h2>
+      <p class="sub" style="margin:0 0 12px">
+        Google and Bing don't allow apps to run searches for them, so this can't
+        do it for you. It takes about a minute to do yourself, and it works every
+        time.
+      </p>
+      <ol class="sub" style="margin:0 0 12px; padding-left: 20px">
+        <li>Click a search below — it opens in a new tab</li>
+        <li>On the results page press <b>⌘A</b> then <b>⌘C</b>
+            (Windows: <b>Ctrl+A</b>, <b>Ctrl+C</b>)</li>
+        <li>Come back, click in the box and press <b>⌘V</b> / <b>Ctrl+V</b></li>
+      </ol>
+      <div class="row" style="margin-bottom:10px">
+        <input id="geoInput" placeholder="City, e.g. Phoenix AZ"
+               style="flex:1; min-width:180px; padding:9px 12px; border-radius:8px;
+                      border:1px solid var(--line); background:var(--panel);
+                      color:var(--ink); font:inherit">
+        <button id="linksBtn">Show me searches</button>
+      </div>
+      <div id="searchLinks" class="sub" style="margin-bottom:12px"></div>
+      <textarea id="pasteBox" rows="5" placeholder="Paste the search results here"
+        style="width:100%; padding:11px; border-radius:8px; border:1px solid var(--line);
+               background:var(--panel); color:var(--ink); font:inherit;
+               resize:vertical"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="importBtn" style="padding:10px 22px; font-size:15px">
+          Add these and check them</button>
+        <span class="sub" id="importOut" style="margin:0"></span>
+      </div>
+    </div>
+
     <div class="card">
       <div class="row spread" style="margin-bottom:12px">
         <h2 style="margin:0">What it's doing</h2>
@@ -413,12 +452,109 @@
       if (s.error) $("progressLine").textContent = s.error;
       renderStats($("runStats"), s.totals);
       renderLog(s.log || []);
+      updateTrouble(s);
     }).catch(function () {
       $("stateLine").textContent = "Lost contact with the app.";
       $("currentLine").textContent =
         "Is the black window still open? Close this tab and start it again.";
     });
   }
+
+  // ---- trouble / diagnose ----
+  function updateTrouble(s) {
+    var t = s.totals || {};
+    var finished = s.state === "done" || s.state === "stopped";
+    var nothing = !(t.agencies > 0);
+    var show = finished && nothing;
+    $("troubleCard").hidden = !show;
+    if (show) {
+      $("troubleTitle").textContent = "It finished without finding any agencies";
+      $("troubleBody").textContent =
+        "That usually means the places it looks are refusing automated access — " +
+        "not that there are no agencies out there. Check what's blocked, or use " +
+        "\u201CAdd agencies from your browser\u201D below, which always works.";
+    }
+  }
+
+  $("diagnoseBtn").addEventListener("click", function () {
+    var btn = $("diagnoseBtn");
+    btn.disabled = true; btn.textContent = "Checking…";
+    $("diagnoseOut").innerHTML = "";
+    api("/api/diagnose", { method: "POST", body: "{}" }).then(function (d) {
+      btn.disabled = false; btn.textContent = "Check again";
+      if (d.error) { $("diagnoseOut").innerHTML = "<p class='sub'>" + esc(d.error) + "</p>"; return; }
+      $("diagnoseOut").innerHTML =
+        (d.checks || []).map(function (c) {
+          return '<div class="check"><div class="mark">' + (c.ok ? "✓" : "✗") +
+            "</div><div><b>" + esc(c.label) + "</b><p>" + esc(c.detail) +
+            (c.fix ? "<br><b>What to do:</b> " + esc(c.fix) : "") +
+            (c.sample ? "<br>e.g. " + esc(c.sample.join(", ")) : "") +
+            "</p></div></div>";
+        }).join("") +
+        '<p class="hint"><b>' + esc(d.verdict) + "</b></p>";
+    }).catch(function () {
+      btn.disabled = false; btn.textContent = "Find out why";
+      $("diagnoseOut").innerHTML = "<p class='sub'>Couldn't run the check.</p>";
+    });
+  });
+
+  // ---- import from your own browser ----
+  $("linksBtn").addEventListener("click", function () {
+    var geo = $("geoInput").value.trim();
+    var v = readSettings().verticals[0];
+    api("/api/search-links?vertical=" + encodeURIComponent(v) +
+        "&geo=" + encodeURIComponent(geo)).then(function (r) {
+      $("searchLinks").innerHTML = (r.links || []).map(function (l) {
+        return '<a href="' + esc(l.url) + '" target="_blank" rel="noopener">' +
+          esc(l.term) + " agencies" + (geo ? " in " + esc(geo) : "") + "</a>";
+      }).join(" &nbsp;·&nbsp; ") || "No searches for that.";
+    });
+  });
+
+  $("importBtn").addEventListener("click", function () {
+    var text = $("pasteBox").value;
+    if (!text.trim()) { $("importOut").textContent = "Paste something first."; return; }
+    var btn = $("importBtn");
+    btn.disabled = true;
+    $("importOut").textContent = "Reading…";
+    api("/api/import-preview", {
+      method: "POST",
+      body: JSON.stringify({ text: text, vertical: readSettings().verticals[0],
+                             geo: $("geoInput").value.trim() })
+    }).then(function (r) {
+      var found = r.found || [];
+      if (!found.length) {
+        btn.disabled = false;
+        $("importOut").textContent = "No agency websites in that. Copy the whole " +
+          "results page, not just one link.";
+        return;
+      }
+      if (!confirm("Found " + found.length + " agency websites:\n\n" +
+                   found.slice(0, 15).join("\n") +
+                   (found.length > 15 ? "\n…and " + (found.length - 15) + " more" : "") +
+                   "\n\nAdd these and start checking them?")) {
+        btn.disabled = false; $("importOut").textContent = ""; return;
+      }
+      return api("/api/import", {
+        method: "POST",
+        body: JSON.stringify({ domains: found, check_now: true,
+                               vertical: readSettings().verticals[0],
+                               geo: $("geoInput").value.trim() })
+      }).then(function (res) {
+        btn.disabled = false;
+        if (res.error) { $("importOut").textContent = res.error; return; }
+        $("pasteBox").value = "";
+        $("importOut").textContent = "Added " + res.added +
+          (res.already_known ? ", " + res.already_known + " already known" : "") +
+          (res.tiktok_partners ? ", " + res.tiktok_partners + " skipped as TikTok partners" : "") +
+          ". Checking them now.";
+        $("troubleCard").hidden = true;
+        poll();
+      });
+    }).catch(function () {
+      btn.disabled = false; $("importOut").textContent = "Something went wrong.";
+    });
+  });
 
   // ---- results ----
   function loadResults() {

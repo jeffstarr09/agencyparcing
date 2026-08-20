@@ -30,7 +30,7 @@ jobs:
         run: |
           python -c "import common, sheets, pixel_check, find_agencies, \
                             check_agency_tiktok, parse_clients, score_agencies, \
-                            feedback, tiktok_partners, pipeline, app; print('imports OK')"
+                            feedback, tiktok_partners, pipeline, diagnose, app; print('imports OK')"
 
       - name: Sheets upsert behaviour
         run: python tests/test_sheets_upsert.py

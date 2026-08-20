@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+import diagnose
 import pipeline
 
 HOST = "127.0.0.1"
@@ -87,6 +88,35 @@ class Runner:
             try:
                 totals = pipeline.run(config, self.emit, self._stop.is_set)
                 self.totals = totals
+                self.state = "stopped" if self._stop.is_set() else "done"
+                self.emit("info", "Stopped." if self._stop.is_set() else "Finished.")
+            except Exception as e:
+                self.state = "error"
+                self.error = f"{type(e).__name__}: {e}"
+                self.emit("error", self.error)
+
+        self.thread = threading.Thread(target=work, daemon=True)
+        self.thread.start()
+        return True, "Started."
+
+    def start_processing(self, domains, config):
+        """
+        Check a specific set of agencies, rather than going looking for new ones.
+        Used after an import - same downstream code, different starting point.
+        """
+        with self.lock:
+            if self.thread and self.thread.is_alive():
+                return False, "Already running."
+        self._stop.clear()
+        self.state = "running"
+        self.error = ""
+        self.started_at = datetime.now(timezone.utc).isoformat()
+        self.emit("info", f"Checking {len(domains)} agency website(s) you added.")
+
+        def work():
+            try:
+                self.totals = pipeline.process_agencies(
+                    domains, self.emit, self._stop.is_set, config)
                 self.state = "stopped" if self._stop.is_set() else "done"
                 self.emit("info", "Stopped." if self._stop.is_set() else "Finished.")
             except Exception as e:
@@ -290,6 +320,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"clients": pipeline.clients_for_review(150)})
         if path == "/api/problems":
             return self._json(problems())
+        if path == "/api/search-links":
+            q = dict(p.split("=", 1) for p in urlparse(self.path).query.split("&")
+                     if "=" in p)
+            from urllib.parse import unquote_plus
+            return self._json({"links": pipeline.search_links(
+                unquote_plus(q.get("vertical", "home_services")),
+                unquote_plus(q.get("geo", "")),
+                unquote_plus(q.get("engine", "google")))})
         return self._json({"error": "not found"}, 404)
 
     def do_POST(self):
@@ -331,6 +369,33 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
             return self._json({"ok": True, "applied": report.get("applied", 0),
                                "skipped": report.get("skipped", [])})
+
+        if path == "/api/diagnose":
+            if RUNNER.running:
+                return self._json({"error": "Stop the run first, then diagnose."}, 409)
+            try:
+                return self._json(diagnose.run(delay=0.5))
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+
+        if path == "/api/import-preview":
+            found = pipeline.extract_agencies(
+                body.get("text", ""), body.get("vertical", ""), body.get("geo", ""))
+            return self._json({"found": [f["agency_domain"] for f in found]})
+
+        if path == "/api/import":
+            domains = body.get("domains") or []
+            if not domains:
+                found = pipeline.extract_agencies(body.get("text", ""))
+                domains = [f["agency_domain"] for f in found]
+            if not domains:
+                return self._json({"error": "No agency websites found in that."}, 400)
+            added, known, partner = pipeline.add_agencies(
+                domains, body.get("vertical", ""), body.get("geo", ""))
+            if body.get("check_now") and not RUNNER.running:
+                RUNNER.start_processing(domains, load_settings())
+            return self._json({"ok": True, "added": added,
+                               "already_known": known, "tiktok_partners": partner})
 
         if path == "/api/reset":
             pipeline.reset_state()

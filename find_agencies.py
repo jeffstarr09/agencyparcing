@@ -95,6 +95,19 @@ NON_AGENCY_DOMAINS = {
     "adobe.com", "salesforce.com", "trustpilot.com", "g2.com", "capterra.com",
     "partners.tiktok.com", "business.tiktok.com", "goodfirms.co", "themanifest.com",
     "expertise.com", "agencyvista.com", "wadline.com",
+    # CDNs, fonts, trackers and embeds. These turn up constantly in a pasted
+    # search page and are never an agency.
+    "jsdelivr.net", "unpkg.com", "bootstrapcdn.com", "fontawesome.com",
+    "cloudfront.net", "akamaized.net", "typekit.net", "imgix.net", "gravatar.com",
+    "googletagmanager.com", "google-analytics.com", "googleadservices.com",
+    "doubleclick.net", "recaptcha.net", "youtu.be", "youtube-nocookie.com",
+    "w3.org", "schema.org", "creativecommons.org", "gstatic.com",
+    "wpengine.com", "kinsta.com", "siteground.com", "webflow.io", "myshopify.com",
+    "vercel.app", "netlify.app", "herokuapp.com", "wp.com",
+    "klaviyo.com", "calendly.com", "hotjar.com", "intercom.com", "zendesk.com",
+    "typeform.com", "stripe.com", "paypal.com", "zoom.us", "reddit.com",
+    "threads.net", "snapchat.com", "tumblr.com", "substack.com", "houzz.com",
+    "angi.com", "thumbtack.com", "bbb.org", "nextdoor.com",
 }
 
 # --------------------------------------------------------------------------
