@@ -28,37 +28,48 @@ seconds. Leave the black window open while you use it — closing it quits the a
 
 ### Mac: "Apple could not verify it is free of malware"
 
-**Expected, and it happens to every Mac.** It is not a virus warning. macOS
-blocks *any* program downloaded from the internet that hasn't been through
-Apple's paid developer signing, and this is a plain text file you can read.
+**Expected, and every Mac does it.** It is not a virus warning. macOS blocks
+*any* program downloaded from the internet that hasn't been through Apple's paid
+signing process, and this is a plain text file you can open and read.
 
-Click **Done** on that box, then:
+There are two ways past it. **Start with the first one** — it works on a work
+Mac where you don't have the admin password.
 
-1. Open **System Settings**
-2. Go to **Privacy & Security**
-3. Scroll down to the **Security** section. You'll see
-   *"Start TikTok Gap.command" was blocked to protect your Mac.*
-4. Click **Open Anyway**
-5. Enter your Mac password or Touch ID
-6. Double-click **`Start TikTok Gap.command`** again — this time click **Open**
+#### The way that needs no permissions
 
-You only do this once. After that it starts normally every time.
+You don't type any file paths; you drag the file in and Terminal fills it in.
 
-> On older Macs (macOS 14 and earlier) right-clicking the file → **Open** →
-> **Open** does the same thing in one step. Apple removed that shortcut in
-> macOS 15 Sequoia, which is why the setting above is now the way in.
-
-**If "Open Anyway" isn't there**, use Terminal instead — it sidesteps the check
-entirely, and you don't have to type any file paths:
-
-1. Open **Terminal** (press ⌘+Space, type `Terminal`, press Return)
-2. Type `bash ` — the word bash, then a space. Don't press Return yet.
-3. **Drag `Start TikTok Gap.command` from your folder into the Terminal window.**
-   It fills in the path for you.
+1. Press **⌘ + Space**, type `Terminal`, press **Return**
+2. Type `bash ` — the word *bash*, then a space. **Don't press Return yet.**
+3. **Drag `Start TikTok Gap.command` from your Finder window into the Terminal
+   window.** The path appears on its own.
 4. Press **Return**
 
-That starts the app the same way. To run it again later, press the Up arrow in
-Terminal and hit Return.
+The app starts exactly as it would have. macOS doesn't object, because you're
+handing the file to a program rather than launching it yourself — no admin
+password, no security settings, nothing to unlock.
+
+Next time, open Terminal and press the **Up arrow** then **Return** to run the
+same thing again.
+
+> **"command not found: python3"?** Your Mac doesn't have Python yet. On a
+> managed work Mac, installing it usually needs your IT team — ask them for
+> Python 3, or run the app on a personal machine.
+
+#### The way that needs the admin password
+
+Only if you're an administrator of this Mac:
+
+1. Click **Done** on the warning
+2. **System Settings** → **Privacy & Security**
+3. Scroll to **Security**. You'll see *"Start TikTok Gap.command" was blocked…*
+4. Click **Open Anyway**, then enter the admin password or use Touch ID
+5. Double-click the file again → **Open**
+
+Once only; it starts normally afterwards.
+
+> On macOS 14 and earlier, right-clicking the file → **Open** → **Open** did
+> this in one step. Apple removed that shortcut in macOS 15 Sequoia.
 
 ### Other things that can go wrong
 
@@ -194,6 +205,7 @@ here". Web search is the source that reliably works from a laptop.
 | Lots of "couldn't read" | Normal from some networks. It keeps going and records them honestly |
 | Nothing found after a while | Check the Problems tab — a search source may be blocked |
 | Want to start fresh | Setup tab → **Forget progress**. Results and learning are kept |
+| Mac blocks it and you have no admin password | Use the Terminal method above — it needs no permissions |
 
 Everything the app does can also be done from the command line — see
 [RUNBOOK.md](RUNBOOK.md) for that, and [README.md](README.md) for how it all
