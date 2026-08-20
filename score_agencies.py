@@ -26,9 +26,12 @@ Per-client outcomes, from the Ad Tags row:
   unchecked     no Ad Tags row - the client has no domain, or was never run.
   unreachable   we tried and the site blocked us. NOT a clean read either way.
 
-Nothing here writes a new schema: the scorecard goes into the Agencies tab's
-existing clients_found and notes columns, and the full breakdown lands in a
-local CSV you can sort however you like.
+The scorecard lands in the Agencies tab as real columns - clients_checked,
+clients_qualifying, clients_tiktok_free, clients_with_tiktok, coverage_pct - so
+you can sort the sheet on the number rather than on a substring inside notes.
+The same summary is also written into notes as an audit trail. The full
+breakdown, including which client domains qualified, goes to
+agency_scorecard.csv.
 """
 
 import argparse
@@ -160,9 +163,9 @@ def score(clients, tags, agencies=None, min_confidence=None):
 
 def to_agency_rows(scored):
     """
-    Fold the scorecard back into the Agencies schema. clients_found is a real
-    column; the rest goes into notes, prefixed so it can be found with a filter
-    and stripped on the next run.
+    Fold the scorecard back into the Agencies schema: the count columns get the
+    numbers, and notes gets a SCORE summary line, prefixed so it can be found
+    with a filter and replaced rather than stacked on the next run.
     """
     out = []
     for r in scored:
@@ -180,6 +183,14 @@ def to_agency_rows(scored):
             "clients_found": str(r["clients_found"]),
             "status": r["agency_status"] or "scored",
             "notes": " | ".join(p for p in (prior, summary) if p),
+            # Real columns, so the sheet sorts on a number instead of on a
+            # substring buried in notes. The notes summary stays for the audit
+            # trail and because it survives a column being hidden.
+            "clients_checked": str(r["clients_checked"]),
+            "clients_qualifying": str(r["qualifying"]),
+            "clients_tiktok_free": str(r["tiktok_free"]),
+            "clients_with_tiktok": str(r["has_tiktok"]),
+            "coverage_pct": str(r["coverage_pct"]),
         })
     return out
 

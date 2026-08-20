@@ -1,0 +1,44 @@
+name: Tests
+
+# The regression gate. The extractors in parse_clients.py are heuristics tuned
+# against tests/fixtures; this makes sure a change to one of them doesn't
+# silently break another. Runs on every push, needs no secrets and touches no
+# network, so it is fast and always safe to run.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Everything imports
+        run: |
+          python -c "import common, sheets, pixel_check, find_agencies, \
+                            check_agency_tiktok, parse_clients, score_agencies, \
+                            feedback, tiktok_partners; print('imports OK')"
+
+      - name: Sheets upsert behaviour
+        run: python tests/test_sheets_upsert.py
+
+      - name: Feedback loop
+        run: python tests/test_feedback.py
+
+      - name: Extractor regression against fixtures
+        # Guards the parse itself: if a fixture stops yielding the clients it is
+        # supposed to, the extractors have regressed and this fails the build.
+        run: python tests/test_extractors.py

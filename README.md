@@ -8,7 +8,10 @@ The pitch it's built to support: those agencies are already producing vertical
 video for Reels and YouTube, so the creative is repurposable. *You already made
 the assets.*
 
-Results land in one Google Sheet, three tabs.
+Results land in one Google Sheet.
+
+**New here? [RUNBOOK.md](RUNBOOK.md) is the step-by-step.** This file is the
+reference.
 
 ---
 
@@ -23,6 +26,7 @@ check_agency_tiktok.py →  Agencies tab      does the agency sell TikTok? with 
 parse_clients.py       →  Clients tab       who are the agency's clients?
 pixel_check.py         →  Ad Tags tab       does each client run a TikTok pixel?
 score_agencies.py      →  Agencies tab      how many clients came back TikTok-free
+feedback.py            →  Feedback tab      your corrections, fed back into the parser
 ```
 
 A full pass, from nothing to a ranked list:
@@ -85,6 +89,61 @@ gets `TARGET:` in notes. Those are the calls to make.
 `case_study_title` is low. Review anything below high.
 
 **Ad Tags** — `pixel_check.py` output, one row per client domain. See below.
+
+**Feedback** — where your corrections go. See below.
+
+---
+
+## The feedback loop
+
+The extractors are heuristics, and heuristics are wrong in specific, repeatable
+ways. Rather than re-notice the same bad row every week, you correct it once:
+
+```
+Clients tab  →  you add a verdict in the Feedback tab  →  feedback.py --learn
+             →  data/learned_rules.json  →  the next parse_clients.py run
+```
+
+Five verdicts: `bad`, `good`, `rename`, `wrong_domain`, `missed`. A `bad` label
+is never recorded again for that agency. A `rename` is applied everywhere. A
+domain you supply is marked high confidence, because a fact you supplied beats
+any heuristic.
+
+```bash
+python feedback.py --template --clients clients.csv -o review.csv   # rows to review
+python feedback.py --learn --from-sheet                             # verdicts -> rules
+python feedback.py --show-rules                                     # what it knows
+python feedback.py --report --from-sheet                            # what's broken
+```
+
+**It tunes itself where it has evidence.** Once a method has 20+ reviewed
+examples, its confidence rating is set from measured precision — a method you
+keep marking wrong is demoted, one that keeps being right is promoted. Twenty is
+a deliberate floor so one afternoon of review can't swing the pipeline.
+
+Nothing here guesses: every rule traces to a row you wrote, and rules are exact
+matches, never fuzzy.
+
+### It reports on itself
+
+`.github/workflows/health-check.yml` runs every Monday, folds in new verdicts,
+and files a health report as a GitHub issue labelled `health-report` — updated in
+place. It tells you which directories have gone quiet, and distinguishes *blocked
+by Cloudflare* from *the page layout changed*, because those need different
+fixes. If an extractor regresses, the issue leads with the failing test output.
+
+Paste that issue's URL into a Claude Code session and it has what it needs to fix
+the problem without going and looking first.
+
+### Regression gate
+
+`.github/workflows/tests.yml` runs on every push — no secrets, no network:
+
+```bash
+python tests/test_extractors.py     # the parse must not regress
+python tests/test_feedback.py       # verdicts must change the parse
+python tests/test_sheets_upsert.py  # upserts must not duplicate
+```
 
 ---
 

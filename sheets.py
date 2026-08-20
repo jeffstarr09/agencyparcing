@@ -41,10 +41,22 @@ TABS = {
         "agency_name", "agency_domain", "vertical", "hq_location",
         "employee_count", "mentions_tiktok", "tiktok_evidence",
         "client_page_url", "clients_found", "status", "notes", "last_checked",
+        # Appended by score_agencies.py. These are the columns you sort on: the
+        # scorecard used to live inside notes, which meant sorting on a substring.
+        # Appended at the end so an existing sheet migrates without shifting data.
+        "clients_checked", "clients_qualifying", "clients_tiktok_free",
+        "clients_with_tiktok", "coverage_pct",
     ],
     "Clients": [
         "client_name", "client_domain", "agency_name", "agency_domain",
         "vertical", "source", "confidence", "last_checked",
+    ],
+    # Where your corrections go. You review the Clients tab, put a verdict here,
+    # and feedback.py turns those verdicts into rules the parser applies on the
+    # next run. See feedback.py and RUNBOOK.md.
+    "Feedback": [
+        "entity_type", "entity_key", "agency_domain", "verdict",
+        "correct_value", "method", "note", "reviewed_at", "applied",
     ],
     "Ad Tags": [
         "domain", "client_name", "agency_name", "resolved_url", "http_status",
@@ -57,13 +69,24 @@ TABS = {
 }
 
 # Which column identifies a row uniquely, per tab. Used for upserts.
-KEYS = {"Agencies": "agency_domain", "Clients": "client_domain", "Ad Tags": "domain"}
+KEYS = {"Agencies": "agency_domain", "Clients": "client_domain", "Ad Tags": "domain",
+        "Feedback": "entity_key"}
 
 # When the primary key is blank, fall back to these columns joined together.
 # This exists for Clients: parse_clients.py legitimately produces rows with a
 # name and no resolvable domain, and without a fallback every re-run would
 # append "Acme Plumbing" again instead of updating the row already there.
-KEY_FALLBACKS = {"Clients": ["agency_domain", "client_name"]}
+KEY_FALLBACKS = {
+    "Clients": ["agency_domain", "client_name"],
+    # One verdict per entity per agency. Re-reviewing a row replaces the old
+    # verdict rather than stacking a second, contradictory one beside it.
+    "Feedback": ["agency_domain", "entity_type", "entity_key"],
+}
+
+# Tabs whose identity is always the composite, never the single key column.
+# "Acme Plumbing" can be a client of two different agencies, and each deserves
+# its own verdict.
+ALWAYS_COMPOSITE = {"Feedback"}
 
 
 def _creds_path():
@@ -123,16 +146,30 @@ def connect(sheet_id=None):
             current = ws.row_values(1)
             if not current:
                 _install_header(ws, headers)
+            elif current == headers[:len(current)] and len(current) < len(headers):
+                # Columns were appended to the schema since this sheet was made.
+                # Every existing column is still in the same position, so writing
+                # the full header is safe and no data moves. Migrate quietly.
+                if ws.col_count < len(headers):
+                    ws.add_cols(len(headers) - ws.col_count)
+                _install_header(ws, headers)
+                added = headers[len(current):]
+                print(f"  tab '{tab}': added column(s) {', '.join(added)}",
+                      file=sys.stderr)
             elif current != headers:
-                # A drifted header silently misfiles every subsequent write, so
-                # say so rather than writing columns into the wrong places.
+                # Anything else - reordered, renamed, columns removed - would
+                # silently misfile every subsequent write. Say so instead.
                 missing = [h for h in headers if h not in current]
+                extra = [h for h in current if h not in headers]
                 raise SystemExit(
                     f"Tab '{tab}' has an unexpected header row.\n"
                     f"  expected: {headers}\n"
                     f"  found:    {current}\n"
                     + (f"  missing:  {missing}\n" if missing else "")
-                    + "\nFix the header row, or rename the tab and let this script "
+                    + (f"  unknown:  {extra}\n" if extra else "")
+                    + "\nColumns appended to the end migrate automatically; this "
+                      "header differs in a way that\ncannot be migrated safely. "
+                      "Fix the header row, or rename the tab and let this\nscript "
                       "recreate it.\n"
                 )
 
@@ -158,10 +195,11 @@ def _row_key(tab, d):
     tab's fallback columns joined. Returns "" when neither is usable, which
     means "append, and accept that a re-run may duplicate it".
     """
-    primary = str(d.get(KEYS[tab], "") or "").strip().lower()
-    if primary:
-        return primary
     fallback = KEY_FALLBACKS.get(tab)
+    if tab not in ALWAYS_COMPOSITE:
+        primary = str(d.get(KEYS[tab], "") or "").strip().lower()
+        if primary:
+            return primary
     if not fallback:
         return ""
     parts = [str(d.get(c, "") or "").strip().lower() for c in fallback]

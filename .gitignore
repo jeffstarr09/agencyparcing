@@ -12,6 +12,13 @@ clients.csv
 agency_tiktok.csv
 agency_scorecard.csv
 agency_source_failures.csv
+feedback_report.md
+review.csv
 
 # Fetched pages. Keeps re-runs from re-hitting anyone's site; can get large.
 .cache/
+
+# NOT ignored, and deliberately so:
+#   data/learned_rules.json   what your review verdicts taught the parser
+#   data/source_health.json   which directories have gone quiet
+# Both are state worth keeping and worth seeing in a diff.

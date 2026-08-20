@@ -43,6 +43,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin, urlparse
 
 import common
+import feedback
+
+# Rules learned from your verdicts in the Feedback tab. Loaded once at import so
+# every extractor sees the same set; see feedback.py for how they get here.
+RULES = feedback.Rules()
 
 # --------------------------------------------------------------------------
 # Where client lists live
@@ -204,6 +209,9 @@ def plausible_name(name, agency_name="", agency_domain=""):
         return False
     low = name.lower().strip()
     if low in JUNK_LABELS:
+        return False
+    # Anything you marked `bad` in the Feedback tab, globally or for this agency.
+    if RULES.is_junk(name, agency_domain=agency_domain):
         return False
     if len(name) < 2 or len(name) > 60:
         return False
@@ -553,7 +561,54 @@ def merge_clients(records, agency):
             rec["confidence"] = "high"
         rec["source"] = f"{'+'.join(sorted(rec['_methods']))} | {rec['source']}"
 
-    return _attach_domains(records)
+    return _attach_domains(_apply_learned(records, agency))
+
+
+def _apply_learned(records, agency):
+    """
+    Apply the corrections you made in the Feedback tab.
+
+    Runs after merging so a rename lands on the final row rather than on one
+    extractor's guess, and so a correction can rescue a row two extractors
+    disagreed about. Junk suppression already happened up in plausible_name.
+    """
+    agency_domain = common.root_domain(agency.get("agency_domain", "")) or ""
+    out = []
+    for rec in records:
+        corrected = False
+
+        fixed = RULES.correct_name(rec["client_name"])
+        if fixed != rec["client_name"]:
+            rec["source"] += f" | renamed from '{rec['client_name']}' (your correction)"
+            rec["client_name"] = fixed
+            corrected = True
+
+        new_domain = RULES.correct_domain(rec["client_name"], rec["client_domain"])
+        if new_domain and new_domain != rec["client_domain"]:
+            rec["source"] += (f" | domain corrected from "
+                              f"'{rec['client_domain'] or 'blank'}' (your correction)")
+            rec["client_domain"] = new_domain
+            corrected = True
+
+        # A correction is a fact you supplied, so it outranks any heuristic.
+        if corrected:
+            rec["confidence"] = "high"
+
+        # Re-check junk after renaming: a corrected name can land on a rule.
+        if RULES.is_junk(rec["client_name"], rec["client_domain"], agency_domain):
+            continue
+        # Confidence learned from each method's measured precision. Takes the
+        # best rating among the methods that found this row, and replaces the
+        # built-in default in both directions: a method that reviews badly gets
+        # demoted, not just one that reviews well getting promoted. A row you
+        # corrected by hand keeps its high rating regardless.
+        if not corrected:
+            learned = [RULES.confidence_for(m, None) for m in rec["_methods"]]
+            learned = [c for c in learned if c]
+            if learned:
+                rec["confidence"] = min(learned, key=lambda c: CONFIDENCE_RANK[c])
+        out.append(rec)
+    return out
 
 
 def _squash(s):
@@ -954,6 +1009,11 @@ def main():
 
     print(f"Parsing clients for {len(agencies)} agencies "
           f"({args.delay}s/request per host)...", file=sys.stderr)
+    if RULES.empty:
+        print("  no learned rules yet - review some rows and run "
+              "`python feedback.py --learn`", file=sys.stderr)
+    else:
+        print(f"  applying your corrections: {RULES.summary()}", file=sys.stderr)
 
     fetcher = common.fetcher_from_args(args)
     all_clients, agency_rows = [], []

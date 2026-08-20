@@ -35,6 +35,7 @@ import sys
 from urllib.parse import quote_plus, urljoin
 
 import common
+import feedback
 import tiktok_partners
 
 # --------------------------------------------------------------------------
@@ -618,6 +619,26 @@ def main():
               file=sys.stderr)
         for reason, n in sorted(by_reason.items(), key=lambda kv: -kv[1]):
             print(f"      {n:4}  {reason}", file=sys.stderr)
+
+    # Record what each source actually produced this run. A directory that
+    # starts returning nothing shows up in `feedback.py --report` as a trend
+    # rather than as a run nobody happened to look at.
+    if not args.seed and not args.from_html:
+        health = {}
+        for src in sources:
+            label = DIRECTORIES[src]["name"] if src in DIRECTORIES else f"search:{args.engine}"
+            found = sum(1 for r in records if label.lower() in r.get("_source", "").lower()
+                        or src in r.get("_source", ""))
+            blocked = any(f["source"].lower().startswith(label.lower())
+                          and f["reason"] in ("bot_challenge", "no_profile_links_matched",
+                                              "no_results_parsed")
+                          for f in failures)
+            health[label] = {"found": found, "blocked": bool(blocked),
+                             "vertical": args.vertical}
+        try:
+            feedback.record_health(health)
+        except OSError as e:
+            print(f"  could not record source health: {e}", file=sys.stderr)
 
     if args.dry_run:
         for r in kept[:40]:
