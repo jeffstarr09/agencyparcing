@@ -26,22 +26,51 @@ That's it. A black window opens, then your browser opens. Press **Start**.
 The first time takes a minute while it sets itself up. After that it's a few
 seconds. Leave the black window open while you use it — closing it quits the app.
 
-### If double-clicking doesn't work
+### Mac: "Apple could not verify it is free of malware"
 
-**Mac says "cannot be opened because it is from an unidentified developer"** —
-that's macOS being careful about downloaded files, not something wrong. Right-click
-the file → **Open** → **Open**. You only have to do this once.
+**Expected, and it happens to every Mac.** It is not a virus warning. macOS
+blocks *any* program downloaded from the internet that hasn't been through
+Apple's paid developer signing, and this is a plain text file you can read.
 
-**Mac says "you do not have permission to execute"** — the download stripped the
-file's permission. Open Terminal, type `chmod +x ` (with the space), then drag
-`Start TikTok Gap.command` from the folder into the Terminal window and press
-Return. Then double-click it again.
+Click **Done** on that box, then:
+
+1. Open **System Settings**
+2. Go to **Privacy & Security**
+3. Scroll down to the **Security** section. You'll see
+   *"Start TikTok Gap.command" was blocked to protect your Mac.*
+4. Click **Open Anyway**
+5. Enter your Mac password or Touch ID
+6. Double-click **`Start TikTok Gap.command`** again — this time click **Open**
+
+You only do this once. After that it starts normally every time.
+
+> On older Macs (macOS 14 and earlier) right-clicking the file → **Open** →
+> **Open** does the same thing in one step. Apple removed that shortcut in
+> macOS 15 Sequoia, which is why the setting above is now the way in.
+
+**If "Open Anyway" isn't there**, use Terminal instead — it sidesteps the check
+entirely, and you don't have to type any file paths:
+
+1. Open **Terminal** (press ⌘+Space, type `Terminal`, press Return)
+2. Type `bash ` — the word bash, then a space. Don't press Return yet.
+3. **Drag `Start TikTok Gap.command` from your folder into the Terminal window.**
+   It fills in the path for you.
+4. Press **Return**
+
+That starts the app the same way. To run it again later, press the Up arrow in
+Terminal and hit Return.
+
+### Other things that can go wrong
+
+**Windows: "Windows protected your PC"** — same idea as the Mac warning. Click
+**More info** → **Run anyway**.
+
+**Mac: "you do not have permission to execute"** — the download stripped the
+file's permission. Use the Terminal method above; `bash` doesn't need it.
 
 **Nothing happens at all** — you probably need Python. Get it from
 [python.org/downloads](https://www.python.org/downloads/), install it, then
-double-click again. On Windows, tick **"Add Python to PATH"** during the install.
-
-**Windows SmartScreen warning** — click **More info** → **Run anyway**.
+try again. On Windows, tick **"Add Python to PATH"** during the install.
 
 ---
 

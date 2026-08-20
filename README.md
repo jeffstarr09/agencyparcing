@@ -14,7 +14,8 @@ Green **`< > Code`** button above → **Download ZIP** → unzip it → double-c
 **`Start TikTok Gap.command`** (Mac) or **`Start TikTok Gap.bat`** (Windows) →
 press **Start**.
 
-Full walkthrough, including what to do if your Mac refuses to open it:
+Full walkthrough, including what to do when your Mac says it *"could not verify
+it is free of malware"* (expected — every unsigned download gets that):
 **[START HERE.md](START%20HERE.md)**.
 
 This file is the reference for how it works. [RUNBOOK.md](RUNBOOK.md) is the
