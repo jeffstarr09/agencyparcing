@@ -1,6 +1,17 @@
 service_account.json
 *.pyc
 __pycache__/
-results*.csv
 .env
 .venv/
+
+# Run output. Local files are written before any Sheets write, so these are
+# rebuilt on every run and never belong in the repo.
+results*.csv
+agencies*.csv
+clients.csv
+agency_tiktok.csv
+agency_scorecard.csv
+agency_source_failures.csv
+
+# Fetched pages. Keeps re-runs from re-hitting anyone's site; can get large.
+.cache/

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- Fixture: a WordPress agency logo wall. Mirrors the common real-world shape:
+     Elementor-style grid, lazy-loaded images with a placeholder in src and the
+     real file in data-lazy-src, alt text present on some and missing on others,
+     srcset with dimension suffixes, and a footer full of noise. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Our Clients | Alpine Digital</title>
+  <meta property="og:site_name" content="Alpine Digital">
+</head>
+<body>
+<header>
+  <a href="/" class="logo"><img src="/wp-content/uploads/2023/04/alpine-digital-logo.svg" alt="Alpine Digital"></a>
+  <nav>
+    <a href="/services">Services</a>
+    <a href="/our-work">Our Work</a>
+    <a href="/clients">Clients</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Brands we work with</h1>
+  <p>We've driven paid media for home service brands across the Southwest since 2014.</p>
+
+  <section class="logo-wall">
+    <div class="logo-grid">
+
+      <!-- alt text present and clean -->
+      <div class="logo-item">
+        <img loading="lazy"
+             src="/wp-content/uploads/2024/01/summit-roofing-logo.png"
+             srcset="/wp-content/uploads/2024/01/summit-roofing-logo-300x120.png 300w,
+                     /wp-content/uploads/2024/01/summit-roofing-logo-600x240.png 600w"
+             alt="Summit Roofing" width="300" height="120">
+      </div>
+
+      <!-- alt carries the boilerplate suffix agencies love -->
+      <div class="logo-item">
+        <img loading="lazy"
+             src="/wp-content/uploads/2024/01/desert-air-hvac-logo-grey.png"
+             alt="Desert Air HVAC logo">
+      </div>
+
+      <!-- lazy-loaded: real file is in data-lazy-src, src is a placeholder -->
+      <div class="logo-item">
+        <img class="lazyload"
+             src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+             data-lazy-src="/wp-content/uploads/2023/11/canyon-plumbing-co-logo-bw.png"
+             alt="Canyon Plumbing Co.">
+      </div>
+
+      <!-- no alt at all: filename is the only source -->
+      <div class="logo-item">
+        <img loading="lazy"
+             data-src="/wp-content/uploads/2023/08/rio-verde-garage-doors-logo-color-2x.png"
+             alt="">
+      </div>
+
+      <!-- useless alt: the filename has to carry it -->
+      <div class="logo-item">
+        <img src="/wp-content/uploads/2022/06/bright-smile-dental-logo@2x.png"
+             alt="client logo">
+      </div>
+
+      <!-- alt is decorative junk that must not become a client -->
+      <div class="logo-item">
+        <img src="/wp-content/themes/alpine/img/divider.svg" alt="">
+      </div>
+      <div class="logo-item">
+        <img src="/wp-content/themes/alpine/img/quote-icon-grey.svg" alt="icon">
+      </div>
+
+      <!-- a logo hosted on a CDN, still a real client -->
+      <div class="logo-item">
+        <img src="https://cdn.alpinedigital.com/uploads/2024/03/verde-pest-control-logo-1200x400.webp"
+             alt="Verde Pest Control">
+      </div>
+
+      <!-- linked logo: outbound link is the strongest signal here -->
+      <div class="logo-item">
+        <a href="https://www.stonecreeklandscaping.com/?utm_source=alpinedigital" target="_blank" rel="noopener">
+          <img src="/wp-content/uploads/2024/02/stone-creek-landscaping-logo.png"
+               alt="Stone Creek Landscaping">
+        </a>
+      </div>
+
+      <div class="logo-item">
+        <a href="https://mesagaragedoors.com" target="_blank" rel="noopener nofollow">
+          <img src="/wp-content/uploads/2024/02/mesa-garage-doors-logo-300x100.png" alt="Mesa Garage Doors">
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="testimonial">
+    <blockquote>"Alpine rebuilt our Meta and YouTube funnel in six weeks."</blockquote>
+    <cite>Dana R., <a href="https://blockrenovation.com">Block Renovation</a></cite>
+  </section>
+</main>
+
+<footer>
+  <p>&copy; 2024 Alpine Digital. <a href="/privacy">Privacy</a> · <a href="/sitemap.xml">Sitemap</a></p>
+  <ul class="social">
+    <li><a href="https://www.facebook.com/alpinedigital"><img src="/img/icon-facebook.svg" alt="Facebook"></a></li>
+    <li><a href="https://www.instagram.com/alpinedigital"><img src="/img/icon-instagram.svg" alt="Instagram"></a></li>
+    <li><a href="https://www.linkedin.com/company/alpine-digital"><img src="/img/icon-linkedin.svg" alt="LinkedIn"></a></li>
+    <li><a href="https://www.tiktok.com/@alpinedigital"><img src="/img/icon-tiktok.svg" alt="TikTok"></a></li>
+  </ul>
+  <p class="built">Site by <a href="https://www.somewebshop.com">Some Web Shop</a> ·
+     Hosted on <a href="https://wpengine.com">WP Engine</a> ·
+     <a href="https://www.google.com/maps/place/Alpine+Digital">Find us</a></p>
+</footer>
+</body>
+</html>

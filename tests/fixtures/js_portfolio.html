@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!-- Fixture: a JS-rendered portfolio. The static fetch yields no client names at
+     all - the grid is mounted by React at runtime. The correct outcome is
+     needs_manual_review, never "this agency has zero clients". -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Portfolio | Crestline Growth</title></head>
+<body>
+<header><a href="/"><img src="/static/crestline-growth-logo.svg" alt="Crestline Growth"></a></header>
+<main>
+  <h1>Portfolio</h1>
+  <div id="client-grid" data-endpoint="/api/clients"></div>
+  <noscript>Please enable JavaScript to view our client portfolio.</noscript>
+</main>
+<footer>
+  <a href="https://www.instagram.com/crestlinegrowth">Instagram</a>
+  <a href="https://www.linkedin.com/company/crestline-growth">LinkedIn</a>
+</footer>
+<script src="/static/js/app.bundle.js"></script>
+<script>window.__CLIENTS_ENDPOINT__="/api/clients";</script>
+</body>
+</html>

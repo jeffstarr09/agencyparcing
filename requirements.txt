@@ -1,3 +1,5 @@
+# Runtime is the standard library plus requests. The Google packages are only
+# needed for --sheet; every script writes its CSV without them.
 requests>=2.31
 gspread>=6.0
 google-auth>=2.28

@@ -18,13 +18,19 @@ Layer 3 (headless browser) is intentionally not included - see NOTES at bottom.
 Usage:
     python pixel_check.py input.csv -o results.csv
     python pixel_check.py input.csv -o results.csv --workers 20 --column domain
+    python pixel_check.py acme.com,other.com -o results.csv     # ad-hoc, no file
 
 Input CSV needs a column of domains or URLs (default column name: "domain").
 Bare domains are fine - "acme.com", "www.acme.com", and "https://acme.com" all work.
+
+If the CSV also carries client_name / agency_name columns - which is exactly what
+parse_clients.py writes - those are carried through onto the Ad Tags rows, so the
+pixel results stay joined to the agency they came from.
 """
 
 import argparse
 import csv
+import os
 import re
 import sys
 import time
@@ -205,14 +211,49 @@ def main():
     ap.add_argument("--sheet", action="store_true",
                     help="also write results to the 'Ad Tags' tab in Google Sheets")
     ap.add_argument("--sheet-id", default=None, help="override the target workbook id")
-    ap.add_argument("--agency", default="", help="tag these rows with an agency name")
+    ap.add_argument("--agency", default="",
+                    help="tag these rows with an agency name (a per-row agency_name "
+                         "column in the input file takes precedence)")
     args = ap.parse_args()
 
-    with open(args.input, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        if args.column not in reader.fieldnames:
-            sys.exit(f"Column '{args.column}' not found. Available: {reader.fieldnames}")
-        domains = [r[args.column] for r in reader if r.get(args.column, "").strip()]
+    # meta[domain] carries client_name / agency_name through from the input file
+    # so the Ad Tags rows stay joined to the agency that produced them.
+    meta = {}
+    if os.path.exists(args.input):
+        with open(args.input, newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            fields = reader.fieldnames or []
+            if args.column not in fields:
+                sys.exit(f"Column '{args.column}' not found. Available: {fields}")
+            raw = []
+            for r in reader:
+                d = (r.get(args.column) or "").strip()
+                if not d:
+                    continue
+                raw.append(d)
+                carried = {k: (r.get(k) or "").strip()
+                           for k in ("client_name", "agency_name") if r.get(k)}
+                if carried:
+                    meta.setdefault(d, carried)
+    else:
+        # Not a path - treat it as a comma/whitespace separated list, so a single
+        # domain can be spot-checked without building a file for it.
+        raw = [p.strip() for p in re.split(r"[,\s]+", args.input) if p.strip()]
+        if not raw:
+            sys.exit(f"Input '{args.input}' is neither an existing file nor a domain list.")
+
+    # Dedupe while preserving order. Without this a repeated domain burns a
+    # duplicate fetch and collapses in the output ordering map below.
+    seen = set()
+    domains = []
+    for d in raw:
+        if d not in seen:
+            seen.add(d)
+            domains.append(d)
+    if len(domains) < len(raw):
+        print(f"Deduped {len(raw) - len(domains)} repeated domain(s).", file=sys.stderr)
+    if not domains:
+        sys.exit("No domains to check.")
 
     print(f"Checking {len(domains)} domains with {args.workers} workers...", file=sys.stderr)
 
@@ -272,10 +313,18 @@ def main():
                 row = dict(r)
                 if args.agency:
                     row["agency_name"] = args.agency
+                # Per-row values from the input file win over the --agency flag.
+                row.update(meta.get(r.get("domain", ""), {}))
                 rows.append(row)
             updated, added = sheets.write(book, "Ad Tags", rows)
             print(f"\nSheet updated: {book.url}", file=sys.stderr)
             print(f"  {added} new rows, {updated} updated", file=sys.stderr)
+        except SystemExit as e:
+            # sheets.connect exits loudly on missing creds or a 403. SystemExit
+            # is not an Exception, so it needs its own arm or it kills the run
+            # after the CSV has already landed, without saying the CSV is safe.
+            print(f"\nSheet write failed: {e}", file=sys.stderr)
+            print(f"Your CSV at {args.output} is unaffected.", file=sys.stderr)
         except Exception as e:
             print(f"\nSheet write failed ({type(e).__name__}): {e}", file=sys.stderr)
             print(f"Your CSV at {args.output} is unaffected.", file=sys.stderr)

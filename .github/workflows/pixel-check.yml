@@ -48,6 +48,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Check the Sheet id is configured
+        # Without this the run does all the fetching and then fails at the write,
+        # or silently writes to the default workbook. Fail before spending an hour.
+        env:
+          SHEET_ID: ${{ vars.SHEET_ID }}
+        run: |
+          if [ -z "$SHEET_ID" ]; then
+            echo "::error::Repository variable SHEET_ID is not set. See README step 4."
+            exit 1
+          fi
+          echo "Writing to sheet $SHEET_ID"
+
       - name: Write Google credentials
         # The secret holds the full JSON key. It is never written to the repo,
         # only to the throwaway runner filesystem, which is destroyed after the job.
@@ -55,10 +67,10 @@ jobs:
           SA_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: |
           if [ -z "$SA_JSON" ]; then
-            echo "::error::Secret GCP_SERVICE_ACCOUNT_JSON is not set. See README step 3."
+            echo "::error::Secret GCP_SERVICE_ACCOUNT_JSON is not set. See README step 4."
             exit 1
           fi
-          echo "$SA_JSON" > service_account.json
+          printf '%s' "$SA_JSON" > service_account.json
           python -c "import json; json.load(open('service_account.json')); print('credentials parsed OK')"
 
       - name: Build the input list
@@ -67,10 +79,18 @@ jobs:
           PASTED: ${{ inputs.domains }}
           FILE: ${{ inputs.input_file }}
         run: |
-          if [ -n "$PASTED" ]; then
+          set -euo pipefail
+          if [ -n "${PASTED:-}" ]; then
             # Pasted domains win over the committed file.
             echo "domain" > run_input.csv
-            echo "$PASTED" | tr ',' '\n' | sed 's/[[:space:]]//g' | grep -v '^$' >> run_input.csv
+            # Split on commas and newlines, strip whitespace and any stray quotes,
+            # and drop a pasted "domain" header so it doesn't become a bad_input row.
+            printf '%s' "$PASTED" \
+              | tr ',' '\n' \
+              | tr -d '[:blank:]"'"'" \
+              | grep -v '^$' \
+              | grep -vix 'domain' \
+              >> run_input.csv || true
             echo "Using pasted domains:"
           else
             TARGET="${FILE:-data/clients.csv}"
@@ -81,17 +101,28 @@ jobs:
             cp "$TARGET" run_input.csv
             echo "Using $TARGET:"
           fi
-          echo "  $(( $(wc -l < run_input.csv) - 1 )) domains"
+          COUNT=$(( $(wc -l < run_input.csv) - 1 ))
+          if [ "$COUNT" -lt 1 ]; then
+            echo "::error::Input list is empty after parsing."
+            exit 1
+          fi
+          echo "  $COUNT domains"
 
       - name: Run pixel check
+        # Inputs go in as environment variables, never interpolated into the
+        # command line: ${{ inputs.agency }} spliced into a shell string lets
+        # anyone who can start this workflow run arbitrary commands on the runner.
         env:
           SHEET_ID: ${{ vars.SHEET_ID }}
+          AGENCY: ${{ inputs.agency }}
+          WORKERS: ${{ inputs.workers }}
         run: |
-          python pixel_check.py run_input.csv \
-            -o results.csv \
-            --sheet \
-            --workers "${{ inputs.workers || '15' }}" \
-            ${{ inputs.agency && format('--agency "{0}"', inputs.agency) || '' }}
+          set -euo pipefail
+          ARGS=(run_input.csv -o results.csv --sheet --workers "${WORKERS:-15}")
+          if [ -n "${AGENCY:-}" ]; then
+            ARGS+=(--agency "$AGENCY")
+          fi
+          python pixel_check.py "${ARGS[@]}"
 
       - name: Save results as a download
         # Belt and braces: results are in the Sheet, but also attached to the run
