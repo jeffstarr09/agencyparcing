@@ -85,7 +85,31 @@ try again. On Windows, tick **"Add Python to PATH"** during the install.
 
 ---
 
-## 3. What you'll see
+## 3. The fastest way to results
+
+**If you already have a list of agency websites, paste it in.** On the Run tab
+there's a box: *Have a list already? Paste it here*. One website per line, or
+load a CSV. It'll show you what it recognised, then check every one.
+
+Two kinds of list, and the choice above the box matters:
+
+- **These are agencies** — the full check: do they sell TikTok, who are their
+  clients, are those clients on TikTok.
+- **These are brands** — just checks each site for a TikTok pixel and stops.
+
+This skips the part that goes looking for agencies, which is the part that
+struggles. If you have a list, it is by far the best route.
+
+> **Why can't it find agencies on its own?** Google, Bing and DuckDuckGo all
+> forbid apps from running searches on their behalf, in a file called
+> `robots.txt` that this app respects. So it genuinely cannot search for you.
+> Press **Find out why** on the Run tab and it will tell you exactly what's
+> blocked. To build a list from scratch, open *Don't have a list? Build one from
+> a search* — you run the search, copy the page, paste it in.
+
+---
+
+## 4. What you'll see
 
 Five tabs across the top.
 

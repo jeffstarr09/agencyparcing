@@ -640,20 +640,64 @@ def search_links(vertical, geo, engine="google"):
     return out
 
 
-def extract_agencies(text, vertical="", geo=""):
-    """
-    Pull candidate agency websites out of whatever was pasted: a saved search
-    page, copied text, or just a list of addresses.
+# A domain with any plausible TLD, for a list you wrote yourself.
+_ANY_DOMAIN_RE = re.compile(
+    r"\b(?:www\.)?([a-z0-9][a-z0-9\-]{0,61}"
+    r"(?:\.[a-z0-9][a-z0-9\-]{0,61})*"
+    r"\.[a-z]{2,24})\b", re.I)
 
-    Filters out the search engine itself, social networks, the directories and
-    the usual platform noise, then dedupes by root domain. Returns candidates -
-    nothing is saved until you say so.
+
+def looks_like_a_list(text):
+    """
+    Did someone paste a list they curated, or a page they copied?
+
+    It matters. A curated list deserves the benefit of the doubt - if you wrote
+    down acme.ca, you meant it - while a copied search page is mostly navigation
+    and adverts and needs the strict filter. The tell is shape: a list is short
+    lines that are each almost entirely one address.
+    """
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    if not lines or len(lines) > 2000:
+        return False
+    if "<" in (text or "") and ">" in (text or ""):
+        return False              # markup: a saved page, not a list
+    domainish = 0
+    for line in lines:
+        candidate = line.split(",")[0].split("\t")[0].strip().strip('"\'')
+        m = _ANY_DOMAIN_RE.fullmatch(candidate.replace("https://", "")
+                                              .replace("http://", "").rstrip("/"))
+        if m or common.root_domain(candidate):
+            domainish += 1
+    return domainish >= max(1, int(len(lines) * 0.6))
+
+
+def extract_agencies(text, vertical="", geo="", permissive=None):
+    """
+    Pull candidate agency websites out of whatever was pasted: a list you wrote,
+    a saved search page, or copied text.
+
+    permissive=None decides for itself from the shape of the input. A curated
+    list accepts any TLD; a copied page is held to the stricter filter that
+    knows what a search result page is full of.
+
+    Either way the known non-agency domains - social, directories, CDNs,
+    hosting - are dropped, and results dedupe by root domain. Nothing is saved
+    until you say so.
     """
     text = text or ""
+    if permissive is None:
+        permissive = looks_like_a_list(text)
     found, seen = [], set()
 
     def consider(raw):
-        rd = find_agencies._plausible_agency_domain(raw)
+        if permissive:
+            rd = common.root_domain(raw)
+            # Even a hand-written list shouldn't turn facebook.com into a prospect.
+            if rd and (rd in find_agencies.NON_AGENCY_DOMAINS
+                       or re.search(r"(?:cdn|static|assets|img|images|fonts)\.", rd)):
+                rd = None
+        else:
+            rd = find_agencies._plausible_agency_domain(raw)
         if not rd or rd in seen:
             return
         seen.add(rd)
@@ -671,7 +715,8 @@ def extract_agencies(text, vertical="", geo=""):
         else:
             consider(url)
 
-    for match in _BARE_DOMAIN_RE.findall(text):
+    pattern = _ANY_DOMAIN_RE if permissive else _BARE_DOMAIN_RE
+    for match in pattern.findall(text):
         consider(match)
 
     return [_candidate_row(d, vertical, geo) for d in found]
@@ -818,4 +863,76 @@ def process_agencies(domains, on_event, should_stop, config=None):
     finally:
         _persist(agencies, clients, tags, state, STATE_PATH, cfg, on_event)
 
+    return summary(agencies, clients, tags)
+
+
+def check_domains_only(domains, on_event, should_stop, config=None, agency_name=""):
+    """
+    Pixel-check a list of brand websites and stop there.
+
+    For when the list you have is brands rather than agencies: no client parsing,
+    no services pages, just "which of these are running TikTok". Results land in
+    the same Ad Tags store, so the scorecard picks them up if their agency is
+    known later.
+    """
+    cfg = dict(DEFAULT_CONFIG)
+    cfg.update(config or {})
+
+    agencies = Store(AGENCIES_CSV, AGENCY_FIELDS, ["agency_domain"])
+    clients = Store(CLIENTS_CSV, CLIENT_FIELDS, ["agency_domain", "client_name"])
+    tags = Store(TAGS_CSV, TAG_FIELDS, ["domain"])
+    state = load_state()
+
+    todo, seen = [], {t["domain"] for t in tags.all()}
+    for d in domains:
+        rd = common.root_domain(d)
+        if rd and rd not in seen:
+            seen.add(rd)
+            todo.append(rd)
+
+    if not todo:
+        on_event("info", "Every one of those has already been checked.")
+        return summary(agencies, clients, tags)
+
+    on_event("step", f"Checking {len(todo)} websites for a TikTok pixel")
+    try:
+        for i, domain in enumerate(todo, 1):
+            if should_stop():
+                raise Stopped()
+            session = pixel_check.requests.Session()
+            try:
+                row = pixel_check.check(domain, session)
+            except Exception as e:
+                row = {"domain": domain, "status": f"crashed:{type(e).__name__}"}
+            finally:
+                session.close()
+            if agency_name:
+                row["agency_name"] = agency_name
+            row["last_checked"] = common.now_stamp()
+            tags.put(row)
+            # Recorded as a client too, so it shows up in the scorecard rather
+            # than sitting in a tab nothing joins against.
+            clients.put({
+                "client_name": row.get("client_name") or domain,
+                "client_domain": domain, "agency_name": agency_name,
+                "agency_domain": common.root_domain(agency_name) or "",
+                "vertical": cfg.get("verticals", [""])[0] if cfg.get("verticals") else "",
+                "source": "you provided this list", "confidence": "high",
+                "last_checked": common.now_stamp(),
+            })
+            on_event("progress", f"  {domain}: {_pixel_label(row)}",
+                     step="pixels", i=i, n=len(todo))
+            time.sleep(max(0.0, cfg["delay"] * 0.5))
+    except Stopped:
+        on_event("info", "Stopping - saving everything checked so far.")
+    except Exception as e:
+        on_event("error", f"Unexpected error: {type(e).__name__}: {e}")
+    finally:
+        _persist(agencies, clients, tags, state, STATE_PATH, cfg, on_event)
+
+    rows = tags.all()
+    qualifying = sum(1 for t in rows if t.get("qualifies") == "yes")
+    has_tt = sum(1 for t in rows if t.get("tiktok") == "yes")
+    on_event("info", f"Done. {qualifying} running Meta or Google with no TikTok; "
+                     f"{has_tt} already on TikTok.")
     return summary(agencies, clients, tags)

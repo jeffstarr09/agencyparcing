@@ -128,6 +128,32 @@ class Runner:
         self.thread.start()
         return True, "Started."
 
+    def start_checking(self, domains, config, agency_name=""):
+        """Pixel-check a list of brand websites and stop there."""
+        with self.lock:
+            if self.thread and self.thread.is_alive():
+                return False, "Already running."
+        self._stop.clear()
+        self.state = "running"
+        self.error = ""
+        self.started_at = datetime.now(timezone.utc).isoformat()
+        self.emit("info", f"Checking {len(domains)} website(s) for a TikTok pixel.")
+
+        def work():
+            try:
+                self.totals = pipeline.check_domains_only(
+                    domains, self.emit, self._stop.is_set, config, agency_name)
+                self.state = "stopped" if self._stop.is_set() else "done"
+                self.emit("info", "Stopped." if self._stop.is_set() else "Finished.")
+            except Exception as e:
+                self.state = "error"
+                self.error = f"{type(e).__name__}: {e}"
+                self.emit("error", self.error)
+
+        self.thread = threading.Thread(target=work, daemon=True)
+        self.thread.start()
+        return True, "Started."
+
     def stop(self):
         if self.thread and self.thread.is_alive():
             self._stop.set()
@@ -389,13 +415,26 @@ class Handler(BaseHTTPRequestHandler):
                 found = pipeline.extract_agencies(body.get("text", ""))
                 domains = [f["agency_domain"] for f in found]
             if not domains:
-                return self._json({"error": "No agency websites found in that."}, 400)
+                return self._json({"error": "No websites found in that."}, 400)
+
+            if body.get("kind") == "brands":
+                # A list of brands: pixel-check them and stop. No agency record,
+                # no client parsing - that would invent a relationship nobody
+                # told us about.
+                if RUNNER.running:
+                    return self._json({"error": "Stop the current run first."}, 409)
+                RUNNER.start_checking(domains, load_settings(),
+                                      (body.get("agency_name") or "").strip())
+                return self._json({"ok": True, "checking": len(domains),
+                                   "kind": "brands"})
+
             added, known, partner = pipeline.add_agencies(
                 domains, body.get("vertical", ""), body.get("geo", ""))
             if body.get("check_now") and not RUNNER.running:
                 RUNNER.start_processing(domains, load_settings())
             return self._json({"ok": True, "added": added,
-                               "already_known": known, "tiktok_partners": partner})
+                               "already_known": known, "tiktok_partners": partner,
+                               "kind": "agencies"})
 
         if path == "/api/reset":
             pipeline.reset_state()
