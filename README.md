@@ -10,8 +10,11 @@ the assets.*
 
 ## Just want to run it?
 
-**Double-click `Start TikTok Gap.command` (Mac) or `Start TikTok Gap.bat`
-(Windows), then press Start.** Nothing else to do — see
+Green **`< > Code`** button above → **Download ZIP** → unzip it → double-click
+**`Start TikTok Gap.command`** (Mac) or **`Start TikTok Gap.bat`** (Windows) →
+press **Start**.
+
+Full walkthrough, including what to do if your Mac refuses to open it:
 **[START HERE.md](START%20HERE.md)**.
 
 This file is the reference for how it works. [RUNBOOK.md](RUNBOOK.md) is the

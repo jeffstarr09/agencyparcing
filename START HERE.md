@@ -1,6 +1,21 @@
 # Start here
 
-## Run it
+## 1. Get the files onto your computer
+
+1. Go to **<https://github.com/jeffstarr09/agencyparcing>**
+2. Click the green **`< > Code`** button near the top right
+3. Click **Download ZIP**
+4. Open your Downloads folder and **double-click the ZIP** to unpack it
+
+You'll get a folder called something like
+`agencyparcing-claude-agency-discovery-tiktok-gap-st3gx4`. Drag it somewhere
+you'll find again — your Desktop is fine. Everything the app makes gets saved
+inside that folder.
+
+> Prefer a direct link? [Download the ZIP](https://github.com/jeffstarr09/agencyparcing/archive/refs/heads/claude/agency-discovery-tiktok-gap-st3gx4.zip)
+> — you'll need to be signed in to GitHub if the repo is private.
+
+## 2. Run it
 
 **On a Mac** — double-click **`Start TikTok Gap.command`**
 
@@ -11,17 +26,26 @@ That's it. A black window opens, then your browser opens. Press **Start**.
 The first time takes a minute while it sets itself up. After that it's a few
 seconds. Leave the black window open while you use it — closing it quits the app.
 
-> If your Mac says *"cannot be opened because it is from an unidentified
-> developer"*: right-click the file → **Open** → **Open**. You only have to do
-> that once.
->
-> If nothing happens at all, you probably need Python. Get it from
-> [python.org/downloads](https://www.python.org/downloads/), install it, and
-> double-click again. On Windows, tick **"Add Python to PATH"** during install.
+### If double-clicking doesn't work
+
+**Mac says "cannot be opened because it is from an unidentified developer"** —
+that's macOS being careful about downloaded files, not something wrong. Right-click
+the file → **Open** → **Open**. You only have to do this once.
+
+**Mac says "you do not have permission to execute"** — the download stripped the
+file's permission. Open Terminal, type `chmod +x ` (with the space), then drag
+`Start TikTok Gap.command` from the folder into the Terminal window and press
+Return. Then double-click it again.
+
+**Nothing happens at all** — you probably need Python. Get it from
+[python.org/downloads](https://www.python.org/downloads/), install it, then
+double-click again. On Windows, tick **"Add Python to PATH"** during the install.
+
+**Windows SmartScreen warning** — click **More info** → **Run anyway**.
 
 ---
 
-## What you'll see
+## 3. What you'll see
 
 Five tabs across the top.
 
