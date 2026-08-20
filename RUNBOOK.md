@@ -1,8 +1,11 @@
-# How to run this
+# Running it from the command line
 
-Start to finish, in the order you'd actually do it. If you only read one thing,
-read [The weekly loop](#the-weekly-loop) at the bottom — that's the whole job in
-five commands.
+**You probably don't need this page.** Double-click
+`Start TikTok Gap.command` (Mac) or `Start TikTok Gap.bat` (Windows) and press
+Start — see [START HERE.md](START%20HERE.md).
+
+This page is for driving the steps individually: spot-checking one agency,
+scripting a run, or working out why a step behaved the way it did.
 
 ---
 

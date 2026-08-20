@@ -4,8 +4,7 @@ __pycache__/
 .env
 .venv/
 
-# Run output. Local files are written before any Sheets write, so these are
-# rebuilt on every run and never belong in the repo.
+# Run output. Rebuilt every run; never belongs in the repo.
 results*.csv
 agencies*.csv
 clients.csv
@@ -14,11 +13,16 @@ agency_scorecard.csv
 agency_source_failures.csv
 feedback_report.md
 review.csv
+feedback_verdicts.csv
 
-# Fetched pages. Keeps re-runs from re-hitting anyone's site; can get large.
+# Where you are in a run, and your app preferences. Personal, not shared.
+data/run_state.json
+data/app_settings.json
+
+# Fetched pages. Stops re-runs from re-hitting anyone's site; gets large.
 .cache/
 
 # NOT ignored, and deliberately so:
-#   data/learned_rules.json   what your review verdicts taught the parser
+#   data/learned_rules.json   what your corrections taught the parser
 #   data/source_health.json   which directories have gone quiet
 # Both are state worth keeping and worth seeing in a diff.

@@ -513,7 +513,7 @@ def nav_links(html, page_url, domain):
 # Output: local file first, remote second
 # --------------------------------------------------------------------------
 
-def write_csv(path, fieldnames, rows):
+def write_csv(path, fieldnames, rows, quiet=False):
     """Local write. This happens before any network write, always."""
     if not path:
         return
@@ -524,7 +524,8 @@ def write_csv(path, fieldnames, rows):
         w.writeheader()
         for r in rows:
             w.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
-    print(f"\nWrote {len(rows)} rows -> {path}", file=sys.stderr)
+    if not quiet:
+        print(f"\nWrote {len(rows)} rows -> {path}", file=sys.stderr)
 
 
 def push_sheet(tab, rows, sheet_id=None, local_path=None):

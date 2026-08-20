@@ -8,17 +8,23 @@ The pitch it's built to support: those agencies are already producing vertical
 video for Reels and YouTube, so the creative is repurposable. *You already made
 the assets.*
 
-Results land in one Google Sheet.
+## Just want to run it?
 
-**New here? [RUNBOOK.md](RUNBOOK.md) is the step-by-step.** This file is the
-reference.
+**Double-click `Start TikTok Gap.command` (Mac) or `Start TikTok Gap.bat`
+(Windows), then press Start.** Nothing else to do — see
+**[START HERE.md](START%20HERE.md)**.
+
+This file is the reference for how it works. [RUNBOOK.md](RUNBOOK.md) is the
+command-line version, if you'd rather drive it that way.
 
 ---
 
 ## The pipeline
 
-Four scripts, each runnable on its own against a single domain or a CSV, so you
-can spot-check one agency without running the whole chain.
+`app.py` runs all of this for you in one long job (see
+[START HERE.md](START%20HERE.md)). Each step is also its own script, runnable
+against a single domain or a CSV, so you can spot-check one agency without
+running the whole chain.
 
 ```
 find_agencies.py       →  Agencies tab      candidate agencies, by vertical + metro
@@ -27,6 +33,8 @@ parse_clients.py       →  Clients tab       who are the agency's clients?
 pixel_check.py         →  Ad Tags tab       does each client run a TikTok pixel?
 score_agencies.py      →  Agencies tab      how many clients came back TikTok-free
 feedback.py            →  Feedback tab      your corrections, fed back into the parser
+
+app.py + pipeline.py   →  all of the above, as one resumable job with a UI
 ```
 
 A full pass, from nothing to a ranked list:

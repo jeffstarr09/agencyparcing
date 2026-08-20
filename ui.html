@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok Gap</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #16181d; --muted: #6b7280;
+    --line: #e3e6ea; --accent: #111827; --good: #0e7a4a;
+    --warn: #a55b00; --bad: #b42318; --chip: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f25; --ink: #eceef2; --muted: #9aa1ab;
+      --line: #2b2f37; --accent: #eceef2; --good: #4ade80; --warn: #fbbf24;
+      --bad: #f87171; --chip: #23272e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 22px 26px 0; max-width: 1080px; margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 26px 60px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px; letter-spacing: 0.01em; }
+  button {
+    font: inherit; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--chip); color: var(--ink); padding: 9px 15px; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .primary {
+    background: var(--accent); color: var(--panel); border-color: var(--accent);
+    font-weight: 600; padding: 13px 30px; font-size: 16px;
+  }
+  .danger { color: var(--bad); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .spread { justify-content: space-between; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tabs button { border-radius: 999px; padding: 7px 15px; font-size: 14px; }
+  .tabs button[aria-selected="true"] {
+    background: var(--accent); color: var(--panel); border-color: var(--accent);
+  }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 12px; }
+  .stat { background: var(--chip); border-radius: 10px; padding: 13px 15px; }
+  .stat b { display: block; font-size: 25px; font-weight: 650; letter-spacing: -0.02em; }
+  .stat span { color: var(--muted); font-size: 12.5px; }
+  .hero { grid-column: span 2; background: var(--accent); }
+  .hero b { font-size: 34px; color: var(--panel); }
+  .hero span { color: var(--panel); opacity: .75; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase;
+       letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  .log {
+    background: var(--chip); border-radius: 9px; padding: 12px 14px; height: 300px;
+    overflow-y: auto; font: 12.5px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .log .warn { color: var(--warn); }
+  .log .error { color: var(--bad); }
+  .log .step { color: var(--ink); font-weight: 600; }
+  .log .batch { color: var(--ink); font-weight: 700; display: block; margin-top: 8px; }
+  .log .muted { color: var(--muted); }
+  .bar { height: 6px; background: var(--chip); border-radius: 99px; overflow: hidden; margin: 10px 0 4px; }
+  .bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px;
+          background: var(--chip); color: var(--muted); }
+  .pill.on { background: var(--good); color: #fff; }
+  .pill.off { background: var(--chip); }
+  .check { display: flex; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .check:last-child { border-bottom: 0; }
+  .check .mark { font-size: 17px; line-height: 1.3; }
+  .check b { display: block; font-size: 14px; }
+  .check p { margin: 3px 0 0; color: var(--muted); font-size: 13.5px; }
+  label.opt { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; cursor: pointer; }
+  label.opt input { margin-top: 3px; }
+  label.opt span small { display: block; color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); padding: 26px 0; text-align: center; font-size: 14px; }
+  .hint { color: var(--muted); font-size: 13.5px; margin-top: 10px; }
+  code { background: var(--chip); padding: 2px 6px; border-radius: 5px;
+         font: 12.5px ui-monospace, Menlo, monospace; }
+  .rev { border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .rev:last-child { border-bottom: 0; }
+  .rev .who { font-weight: 600; }
+  .rev .meta { color: var(--muted); font-size: 13px; margin: 2px 0 8px; }
+  .rev button { padding: 5px 11px; font-size: 13px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TikTok Gap</h1>
+  <div class="sub">Find agencies running Meta and YouTube for their clients, but not TikTok.</div>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="run">Run</button>
+    <button role="tab" aria-selected="false" data-tab="results">Results</button>
+    <button role="tab" aria-selected="false" data-tab="review">Review</button>
+    <button role="tab" aria-selected="false" data-tab="problems">Problems</button>
+    <button role="tab" aria-selected="false" data-tab="setup">Setup</button>
+  </div>
+
+  <!-- RUN -->
+  <section id="tab-run">
+    <div class="card">
+      <div class="row spread">
+        <div>
+          <div id="stateLine" style="font-weight:600">Ready when you are.</div>
+          <div class="sub" id="currentLine" style="margin:2px 0 0">
+            Press Start. You can leave it running as long as you like.
+          </div>
+        </div>
+        <div class="row">
+          <button class="primary" id="startBtn">Start</button>
+          <button id="stopBtn" disabled>Stop</button>
+        </div>
+      </div>
+      <div class="bar"><i id="bar" style="width:0%"></i></div>
+      <div class="sub" id="progressLine" style="margin:0"></div>
+    </div>
+
+    <div class="card">
+      <h2>Found so far</h2>
+      <div class="stats" id="runStats"></div>
+      <div class="hint">
+        Everything is saved as it goes. Stopping and starting again picks up where it left off.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row spread" style="margin-bottom:12px">
+        <h2 style="margin:0">What it's doing</h2>
+        <span class="pill" id="livePill">idle</span>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="card">
+      <h2>What to look for</h2>
+      <div class="row" style="gap:22px">
+        <label class="opt"><input type="checkbox" id="v_home_services">
+          <span>Home services<small>HVAC, roofing, plumbing, solar, remodeling</small></span></label>
+        <label class="opt"><input type="checkbox" id="v_local_health">
+          <span>Local health<small>Med spa, dental, dermatology, fitness</small></span></label>
+        <label class="opt"><input type="checkbox" id="v_dtc">
+          <span>DTC ecommerce<small>Direct-to-consumer brands</small></span></label>
+      </div>
+      <label class="opt" style="margin-top:8px"><input type="checkbox" id="keep_going">
+        <span>Keep going until I press Stop
+          <small>Works through 25 metro areas, then goes round again to find more.
+                 Leave this on for a long run.</small></span></label>
+      <label class="opt"><input type="checkbox" id="use_sheets">
+        <span>Also write to my Google Sheet
+          <small>Optional. Off by default — results are always saved as spreadsheet
+                 files in this folder either way.</small></span></label>
+      <div class="hint">
+        It waits a second between requests to any one site, so a long run is a slow,
+        polite one. That's deliberate.
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="tab-results" hidden>
+    <div class="card">
+      <h2>The list</h2>
+      <div class="stats" id="resultStats"></div>
+      <div class="hint" id="resultsHint"></div>
+    </div>
+    <div class="card">
+      <div class="row spread" style="margin-bottom:12px">
+        <h2 style="margin:0">Best agencies to call</h2>
+        <button id="openFolder">Open results folder</button>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>Agency</th><th>Type</th>
+            <th class="num">No TikTok</th><th class="num">Has TikTok</th>
+            <th class="num">Checked</th><th class="num">Found</th><th class="num">Coverage</th>
+            <th>Sells TikTok?</th>
+          </tr></thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <div class="hint">
+        <b>No TikTok</b> is the number to sort on: their clients that run Meta or Google
+        and have no TikTok pixel at all. <b>Coverage</b> is how many of the clients we
+        found we could actually check — a big number on low coverage is a thin read.
+      </div>
+    </div>
+  </section>
+
+  <!-- REVIEW -->
+  <section id="tab-review" hidden>
+    <div class="card">
+      <h2>Teach it what's wrong</h2>
+      <p class="sub" style="margin:0">
+        These are the client names it's least sure about. Marking one takes effect
+        immediately and permanently — it will never make that mistake again.
+        You don't have to get through them all.
+      </p>
+    </div>
+    <div class="card" id="reviewList"></div>
+  </section>
+
+  <!-- PROBLEMS -->
+  <section id="tab-problems" hidden>
+    <div class="card">
+      <h2>What it couldn't read</h2>
+      <p class="sub" style="margin:0 0 4px">
+        None of these are counted as "no clients" or "no TikTok". A site we couldn't
+        read is recorded as unread, not as clean.
+      </p>
+    </div>
+    <div class="card" id="problemsBody"></div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="tab-setup" hidden>
+    <div class="card">
+      <h2>Status</h2>
+      <div id="setupChecks"></div>
+    </div>
+    <div class="card">
+      <h2>Google Sheets (optional)</h2>
+      <p class="sub">
+        You do not need this. Results are always saved as <code>.csv</code> files in
+        this folder, which open in Excel, Numbers or Google Sheets. Set it up only if
+        you want rows written to your shared Sheet automatically.
+      </p>
+      <details>
+        <summary>Show me how</summary>
+        <ol class="sub">
+          <li>Go to <code>console.cloud.google.com</code> and create a project.</li>
+          <li>APIs &amp; Services → Library → enable <b>Google Sheets API</b>.</li>
+          <li>Credentials → Create Credentials → <b>Service account</b> → create a
+              <b>JSON key</b> and download it.</li>
+          <li>Rename it <code>service_account.json</code> and put it in this folder.</li>
+          <li>Open your Sheet → Share → paste the <code>client_email</code> from that
+              file → give it <b>Editor</b> → Send.</li>
+          <li>Come back here and reload this page.</li>
+        </ol>
+      </details>
+    </div>
+    <div class="card">
+      <h2>Start over</h2>
+      <p class="sub">
+        Forgets which areas have been covered, so the next run works through
+        everything again. Your results and everything it has learned are kept.
+      </p>
+      <button class="danger" id="resetBtn">Forget progress</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var seq = 0, polling = null, activeTab = "run";
+
+  function $(id) { return document.getElementById(id); }
+  function api(path, opts) {
+    return fetch(path, Object.assign({ headers: { "Content-Type": "application/json" } },
+                                     opts || {})).then(function (r) { return r.json(); });
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ---- tabs ----
+  Array.prototype.forEach.call(document.querySelectorAll(".tabs button"), function (b) {
+    b.addEventListener("click", function () {
+      activeTab = b.dataset.tab;
+      Array.prototype.forEach.call(document.querySelectorAll(".tabs button"), function (o) {
+        o.setAttribute("aria-selected", String(o === b));
+      });
+      ["run", "results", "review", "problems", "setup"].forEach(function (t) {
+        $("tab-" + t).hidden = t !== activeTab;
+      });
+      if (activeTab === "results") loadResults();
+      if (activeTab === "review") loadReview();
+      if (activeTab === "problems") loadProblems();
+      if (activeTab === "setup") loadSetup();
+    });
+  });
+
+  // ---- settings ----
+  var VERTICALS = ["home_services", "local_health", "dtc"];
+  function readSettings() {
+    var verticals = VERTICALS.filter(function (v) { return $("v_" + v).checked; });
+    if (!verticals.length) { verticals = ["home_services"]; $("v_home_services").checked = true; }
+    return {
+      verticals: verticals,
+      keep_going: $("keep_going").checked,
+      use_sheets: $("use_sheets").checked
+    };
+  }
+  function applySettings(cfg) {
+    VERTICALS.forEach(function (v) {
+      $("v_" + v).checked = (cfg.verticals || []).indexOf(v) !== -1;
+    });
+    $("keep_going").checked = !!cfg.keep_going;
+    $("use_sheets").checked = !!cfg.use_sheets;
+  }
+  ["keep_going", "use_sheets"].concat(VERTICALS.map(function (v) { return "v_" + v; }))
+    .forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        api("/api/settings", { method: "POST", body: JSON.stringify(readSettings()) });
+      });
+    });
+
+  // ---- run ----
+  $("startBtn").addEventListener("click", function () {
+    $("startBtn").disabled = true;
+    api("/api/start", { method: "POST", body: JSON.stringify(readSettings()) })
+      .then(function (r) { if (!r.ok) alert(r.message || "Could not start."); poll(); });
+  });
+  $("stopBtn").addEventListener("click", function () {
+    $("stopBtn").disabled = true;
+    api("/api/stop", { method: "POST" }).then(poll);
+  });
+  $("resetBtn").addEventListener("click", function () {
+    if (!confirm("Forget which areas have been covered? Results are kept.")) return;
+    api("/api/reset", { method: "POST" }).then(function () { alert("Progress forgotten."); });
+  });
+  $("openFolder").addEventListener("click", function () {
+    api("/api/open-folder", { method: "POST" });
+  });
+
+  var STAT_LABELS = [
+    ["qualifying_clients", "clients with no TikTok", true],
+    ["target_agencies", "agencies not selling TikTok"],
+    ["agencies", "agencies found"],
+    ["clients", "clients found"],
+    ["sites_checked", "sites checked"],
+    ["clients_with_tiktok", "clients with TikTok"],
+    ["needs_review", "need a manual look"],
+    ["unreachable", "sites we couldn't read"]
+  ];
+  function renderStats(el, totals) {
+    totals = totals || {};
+    el.innerHTML = STAT_LABELS.map(function (s) {
+      return '<div class="stat' + (s[2] ? " hero" : "") + '"><b>' +
+        (totals[s[0]] || 0) + "</b><span>" + s[1] + "</span></div>";
+    }).join("");
+  }
+
+  function renderLog(lines) {
+    if (!lines.length) return;
+    var box = $("log");
+    var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    lines.forEach(function (l) {
+      var span = document.createElement("span");
+      var cls = ({ warn: "warn", error: "error", step: "step", batch: "batch",
+                   info: "muted", plan: "muted", found: "", progress: "",
+                   debug: "muted" })[l.kind] || "";
+      if (cls) span.className = cls;
+      span.textContent = (l.kind === "batch" ? "\n" : "") + l.at + "  " + l.message + "\n";
+      box.appendChild(span);
+      seq = Math.max(seq, l.seq);
+    });
+    while (box.childNodes.length > 700) box.removeChild(box.firstChild);
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function poll() {
+    api("/api/status?since=" + seq).then(function (s) {
+      var running = s.state === "running" || s.state === "stopping";
+      $("startBtn").disabled = running;
+      $("stopBtn").disabled = !running;
+      $("livePill").textContent = s.state;
+      $("livePill").className = "pill " + (running ? "on" : "off");
+
+      $("stateLine").textContent = ({
+        idle: "Ready when you are.",
+        running: "Running.",
+        stopping: "Stopping…",
+        stopped: "Stopped. Everything found is saved.",
+        done: "Finished. Everything found is saved.",
+        error: "Something went wrong."
+      })[s.state] || s.state;
+
+      $("currentLine").textContent = s.current ||
+        (running ? "Getting started…" : "Press Start. You can leave it running as long as you like.");
+
+      var p = s.progress || {};
+      var pct = p.batch_total ? Math.round(100 * (p.batch_index - 1) / p.batch_total) : 0;
+      if (p.n) pct += Math.round((100 / (p.batch_total || 1)) * (p.i / p.n));
+      $("bar").style.width = Math.max(0, Math.min(100, pct)) + "%";
+      $("progressLine").textContent = p.batch_total
+        ? ("Area " + p.batch_index + " of " + p.batch_total +
+           (p.n ? "  ·  " + p.step + " " + p.i + "/" + p.n : ""))
+        : "";
+
+      if (s.error) $("progressLine").textContent = s.error;
+      renderStats($("runStats"), s.totals);
+      renderLog(s.log || []);
+    }).catch(function () {
+      $("stateLine").textContent = "Lost contact with the app.";
+      $("currentLine").textContent =
+        "Is the black window still open? Close this tab and start it again.";
+    });
+  }
+
+  // ---- results ----
+  function loadResults() {
+    api("/api/results").then(function (r) {
+      renderStats($("resultStats"), r.totals);
+      var rows = r.agencies || [];
+      $("resultsHint").textContent = rows.length
+        ? "Sorted by the number of their clients that have no TikTok pixel."
+        : "";
+      if (!rows.length) {
+        $("resultsBody").innerHTML =
+          '<tr><td colspan="8" class="empty">Nothing yet. Run it for a while, ' +
+          "then come back.</td></tr>";
+        return;
+      }
+      $("resultsBody").innerHTML = rows.map(function (a) {
+        var sells = a.mentions_tiktok === "yes" ? "yes"
+                  : a.mentions_tiktok === "no" ? "no" : "unknown";
+        return "<tr>" +
+          "<td><b>" + esc(a.agency_name || a.agency_domain) + "</b><br>" +
+          '<span class="pill">' + esc(a.agency_domain) + "</span></td>" +
+          "<td>" + esc((a.vertical || "").replace(/_/g, " ")) + "</td>" +
+          '<td class="num"><b>' + a.qualifying + "</b></td>" +
+          '<td class="num">' + a.has_tiktok + "</td>" +
+          '<td class="num">' + a.clients_checked + "</td>" +
+          '<td class="num">' + a.clients_found + "</td>" +
+          '<td class="num">' + a.coverage_pct + "%</td>" +
+          "<td>" + sells + "</td></tr>";
+      }).join("");
+    });
+  }
+
+  // ---- review ----
+  function loadReview() {
+    api("/api/review").then(function (r) {
+      var rows = r.clients || [];
+      if (!rows.length) {
+        $("reviewList").innerHTML =
+          '<div class="empty">Nothing waiting. Either it hasn\'t found clients yet, ' +
+          "or you've reviewed them all.</div>";
+        return;
+      }
+      $("reviewList").innerHTML = rows.map(function (c, i) {
+        var method = (c.source || "").split(" | ")[0];
+        return '<div class="rev" data-i="' + i + '">' +
+          '<div class="who">' + esc(c.client_name) + "</div>" +
+          '<div class="meta">' +
+            "client of " + esc(c.agency_domain) +
+            "  ·  " + esc(c.confidence) + " confidence" +
+            "  ·  " + (c.client_domain ? esc(c.client_domain) : "no website found") +
+            "  ·  found by " + esc(method) +
+          "</div>" +
+          '<div class="row">' +
+            '<button data-v="good">Correct</button>' +
+            '<button data-v="bad">Not a client</button>' +
+            '<button data-v="rename">Wrong name</button>' +
+            '<button data-v="wrong_domain">Wrong website</button>' +
+          "</div></div>";
+      }).join("");
+
+      Array.prototype.forEach.call($("reviewList").querySelectorAll(".rev"), function (el) {
+        var c = rows[+el.dataset.i];
+        Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+          b.addEventListener("click", function () {
+            var verdict = b.dataset.v, correct = "";
+            if (verdict === "rename") {
+              correct = prompt("What should it be called?", c.client_name) || "";
+              if (!correct.trim()) return;
+            }
+            if (verdict === "wrong_domain") {
+              correct = prompt("What's their website? (e.g. acme.com)",
+                               c.client_domain || "") || "";
+              if (!correct.trim()) return;
+            }
+            Array.prototype.forEach.call(el.querySelectorAll("button"), function (x) {
+              x.disabled = true;
+            });
+            api("/api/verdict", {
+              method: "POST",
+              body: JSON.stringify({
+                entity_key: c.client_name, agency_domain: c.agency_domain,
+                verdict: verdict, correct_value: correct.trim(),
+                method: (c.source || "").split(" | ")[0].split("+")[0]
+              })
+            }).then(function (res) {
+              if (res.error) { alert(res.error); loadReview(); return; }
+              el.style.opacity = ".4";
+              el.querySelector(".meta").textContent = "Noted — it won't get this wrong again.";
+            });
+          });
+        });
+      });
+    });
+  }
+
+  // ---- problems ----
+  function loadProblems() {
+    api("/api/problems").then(function (p) {
+      var html = "";
+      if ((p.blocked_sources || []).length) {
+        html += "<h2>Sources that stopped working</h2><ul class='sub'>" +
+          p.blocked_sources.map(function (s) {
+            return "<li>" + esc(s.replace(/\*\*/g, "")) + "</li>";
+          }).join("") + "</ul>";
+      }
+      if ((p.needs_review || []).length) {
+        html += "<h2>Client pages we couldn't read (" + p.needs_review.length + ")</h2>" +
+          "<p class='sub'>These agencies build their client list with JavaScript, so a " +
+          "plain read sees nothing. They're worth opening by hand — a blank here means " +
+          "unknown, not zero.</p><ul class='sub'>" +
+          p.needs_review.map(function (a) {
+            return "<li>" + esc(a.agency_domain) +
+              (a.page ? " — " + esc(a.page) : "") + "</li>";
+          }).join("") + "</ul>";
+      }
+      if ((p.unreachable || []).length) {
+        html += "<h2>Sites that blocked us (" + p.unreachable.length + ")</h2>" +
+          "<ul class='sub'>" + p.unreachable.map(function (a) {
+            return "<li>" + esc(a.agency_domain) + "</li>";
+          }).join("") + "</ul>";
+      }
+      if ((p.notes || []).length) {
+        html += "<h2>Lookups that failed</h2><ul class='sub'>" +
+          p.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
+      }
+      $("problemsBody").innerHTML = html ||
+        '<div class="empty">Nothing to report.</div>';
+    });
+  }
+
+  // ---- setup ----
+  function loadSetup() {
+    api("/api/setup").then(function (s) {
+      $("setupChecks").innerHTML = (s.checks || []).map(function (c) {
+        return '<div class="check"><div class="mark">' + (c.ok ? "✓" : (c.required ? "✗" : "—")) +
+          "</div><div><b>" + esc(c.label) +
+          (c.required ? "" : " <span class='pill'>optional</span>") + "</b>" +
+          "<p>" + esc(c.detail) + "</p></div></div>";
+      }).join("") +
+      '<p class="hint">Results are saved in <code>' + esc(s.results_folder) + "</code></p>";
+    });
+  }
+
+  // ---- boot ----
+  api("/api/settings").then(applySettings);
+  poll();
+  polling = setInterval(function () {
+    poll();
+    if (activeTab === "results") loadResults();
+  }, 1500);
+})();
+</script>
+</body>
+</html>

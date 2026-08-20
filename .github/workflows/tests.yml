@@ -30,13 +30,16 @@ jobs:
         run: |
           python -c "import common, sheets, pixel_check, find_agencies, \
                             check_agency_tiktok, parse_clients, score_agencies, \
-                            feedback, tiktok_partners; print('imports OK')"
+                            feedback, tiktok_partners, pipeline, app; print('imports OK')"
 
       - name: Sheets upsert behaviour
         run: python tests/test_sheets_upsert.py
 
       - name: Feedback loop
         run: python tests/test_feedback.py
+
+      - name: Long-running job survives being stopped
+        run: python tests/test_pipeline.py
 
       - name: Extractor regression against fixtures
         # Guards the parse itself: if a fixture stops yielding the clients it is
